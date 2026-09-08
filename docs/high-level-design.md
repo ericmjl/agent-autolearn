@@ -20,6 +20,16 @@
 > path. Two co-equal loops (falsify + efficiency) on a shared `outcomes.py` spine
 > that indexes `opencode.db`'s tool-call + step-cost data the existing FTS5 index
 > excludes. See Decisions 10–12 and the Certified Procedures LLD.
+>
+> **In flight** — *Wiki Layer* (`docs/designs/wiki-layer/`): the persistent
+> pattern notebook between raw experience and skills, adapted from WikiSkill
+> (arXiv 2608.27454). `wiki/patterns/` pages hold diagnosed patterns (trigger +
+> root cause + fix + evidence) that have not yet recurred enough for a skill;
+> the harness-written `skill-impact.md` ledger records every skill mutation and
+> rejection (append-only, rejections kept forever); the reviewer reads the wiki
+> before proposing and makes at most one skill change per review; skills carry
+> `PURPOSE.md` provenance (backfilled for existing skills). Sync is explicitly
+> out of scope (Decision 15). See Decision 15 and the Wiki Layer LLD.
 
 ## Problem Statement
 
@@ -310,7 +320,6 @@ become skills.
   `proposals confirm`.
 
 ### Decision 14: Dual-shell plugin for OpenCode v1 + v2 (beta) — _shipped_
-
 **Context**: OpenCode 2 (beta, binary `opencode2`) breaks the plugin API
 intentionally: v1 function-export plugins fail v2's schema validation
 (`Expected object at ["default"]`), and v2's plain-object plugins cannot be
@@ -338,6 +347,34 @@ skipping v2 rows mirrored into v1 tables.
   both versions read the same paths; the `plugin`/`plugins` key split with
   one expected v2-side warning is the least-invasive coexistence.
 
+### Decision 15: Wiki layer — evidence compounds, skills are hypotheses; sync out of scope — _in flight_
+
+**Choice**: Adopt the WikiSkill three-layer architecture
+(docs/designs/wiki-layer/): a persistent `wiki/` notebook of diagnosed
+patterns sits between raw session data and skills; a harness-written
+`skill-impact.md` ledger records every skill mutation **including
+rejections, kept forever**; the reviewer must read the wiki before
+proposing and may make at most one skill change per review; skills carry
+`PURPOSE.md` provenance. Skills remain falsify-gated and rollback-able; the
+wiki is never rolled back. Cross-machine sync of wiki data is explicitly
+**out of scope**: doing memory correctly requires per-device versioning and
+merge semantics autolearn defers — better no sync than wrong sync.
+
+**Rationale**: The WikiSkill ablation attributes +15 average points to the
+persistent wiki — the largest single factor measured. Autolearn's
+recurrence gate currently flattens diagnosed-but-not-yet-recurring patterns
+into thin decaying memories; the wiki gives them a durable, compounding
+home. The never-rolled-back / never-deleted asymmetry is why rejections are
+kept: the next proposal builds on the failure instead of repeating it.
+
+**Alternatives considered**:
+- Keeping the memory/skill binary (status quo): loses the diagnosis; the
+  discovery cost is re-paid on every recurrence.
+- Syncing the wiki via the existing encrypted push/pull: rejected (Eric,
+  2026-09-05) — last-write-wins merge can silently drop append-only ledger
+  entries, which are exactly the data that must never be lost. Revisit with
+  a git-backed or per-device-versioned design.
+
 ## Data Store Layout
 
 ### Current (shipped)
@@ -360,6 +397,13 @@ skipping v2 rows mirrored into v1 tables.
 │       │   ├── .archive/
 │       │   └── .usage.json
 │       ├── search.db              # FTS5 index over past OpenCode sessions
+│       ├── wiki/                  # Wiki layer (Decision 15, docs/designs/wiki-layer/)
+│       │   ├── index.md             # one-line catalog per pattern
+│       │   ├── logs.md              # chronological review log
+│       │   ├── skill-impact.md      # harness-written append-only ledger
+│       │   ├── context.md           # composed reviewer view (generated)
+│       │   ├── patterns/            # one page per diagnosed pattern
+│       │   └── consolidated/        # tombstones for superseded patterns
 │       ├── memories.jsonl         # Memory registry (durable, unbounded) — Memory Insight
 │       ├── memory.context.md      # Generated per-session context view (loaded into sessions)
 │       ├── topics.jsonl           # Topic sightings for the shift detector
@@ -401,6 +445,11 @@ Existing flat-layout installs are migrated to `personas/default/` automatically 
 | Long-Horizon Proposer | in flight | Cross-session clustering of user requests + resolutions; stages proposals; auto-promotes when falsification passes. | `proposer.py`, `autolearn.py` |
 | Reviewer Recurrence Gate | in flight | Hard-gates `skill create` on `proposals recurrence` — ends myopic per-session skill creation. | `autolearn-reviewer/SKILL.md`, `proposer.py` |
 | Never-Used Skill Pruner | in flight | Auto-archives autolearn-created skills with `use_count==0` past a grace period (uses repaired use_count). | `autolearn.py` |
+| Wiki Pattern Store | in flight | `wiki/patterns/` notebook: one page per diagnosed pattern (trigger, root cause, fix, evidence), 100-line cap, lexical index. | `wiki.py`, `autolearn.py wiki` |
+| Skill-Impact Ledger | in flight | Harness-written append-only `wiki/skill-impact.md`: every create/patch/demote/archive/promote, rejections kept forever. | `wiki.py`, `autolearn.py` |
+| Reviewer Wiki Protocol | in flight | Step 3.5 mandatory wiki read; pattern page on `recurrent=false`; one skill change per review. | `autolearn-reviewer/SKILL.md` |
+| PURPOSE.md Provenance | in flight | Provenance doc per persona-local skill (origin, patterns addressed, evolution), backfilled for existing skills. | `wiki.py`, `autolearn.py` |
+| Wiki Consolidation | in flight | Curator tombstones stale patterns superseded by skills; pages retained, never deleted. | `autolearn.py`, curator |
 
 ## Risks and Mitigations
 
@@ -433,3 +482,4 @@ Existing flat-layout installs are migrated to `personas/default/` automatically 
 ### Planned
 
 - [Memory Insight LLD](./designs/memory-insight/LLD.md) (+ 5 EARS: registry, retention, composer, shift-detector, inspector-ui) — store/view separation, Ebbinghaus retention, recurring-preference detector, inspector UI
+- [Wiki Layer LLD](./designs/wiki-layer/LLD.md) (+ [EARS](./designs/wiki-layer/wiki-layer-EARS.md)) — persistent pattern notebook, skill-impact ledger, PURPOSE.md provenance; adapted from WikiSkill (arXiv 2608.27454). Sync out of scope (Decision 15).

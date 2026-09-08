@@ -215,6 +215,14 @@ def handle_request(method: str, path: str, body: bytes, persona_dir: Path):
     if method == "GET" and route == "/api/shortcuts":
         return json_response(load_shortcuts(persona_dir))
 
+    # @spec WIKI-INS-001 — wiki layer surfaces
+    if method == "GET" and route == "/api/wiki":
+        import wiki as wiki_mod
+        return json_response({
+            "patterns": wiki_mod.list_patterns(persona_dir),
+            "ledger": wiki_mod.read_ledger(persona_dir, last_n=20),
+        })
+
     if method == "GET" and route == "/api/activity":
         return json_response(load_activity(persona_dir))
 

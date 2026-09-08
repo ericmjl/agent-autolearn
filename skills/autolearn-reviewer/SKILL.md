@@ -175,6 +175,31 @@ uv run $HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py search query
 **First-time setup:** If the search returns an error about the index not existing,
 run `autolearn.py search init` first, then retry the query.
 
+### Step 3.5: Read the wiki before concluding or proposing (MANDATORY)
+
+Before concluding "nothing to record" or proposing any skill change, consult
+the wiki — the persistent notebook of diagnosed patterns and past skill
+attempts:
+
+```bash
+uv run $HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py wiki compose
+```
+
+This renders `wiki/context.md`: the pattern index, recent evolution log, and
+the last 20 skill-impact ledger entries. Then:
+
+1. **If a pattern page exists for this topic** → UPDATE that page
+   (`wiki` evidence below) instead of writing a near-duplicate.
+2. **If the ledger shows the exact approach was already tried and
+   rejected** → DO NOT re-propose it. Build on the failure or propose a
+   different approach. Rejections are recorded forever so you never repeat
+   them.
+3. Read specific pattern pages on demand:
+   `autolearn.py wiki show <slug>`.
+
+If the wiki returns errors (index missing etc.), treat it as empty and
+proceed — never block a review on wiki problems.
+
 ### Step 4: Record observations (behavioral rules, memory, user profile, and skills)
 
 Capture each correction or recurring preference in the behavioral-rule store as well
@@ -251,6 +276,10 @@ just check `user list` for semantic duplicates before adding.
 
 ### Step 7: Create or patch skills
 
+**ONE SKILL CHANGE PER REVIEW.** Make at most ONE skill mutation per review
+(create OR patch). Choose the highest-value single change; everything else
+waits for the next review. This keeps every change falsifiable and auditable.
+
 **HARD GATE — recurrence check (required before ANY `skill create`).** Before
 creating a new skill, you MUST verify the pattern recurs across sessions, not
 just this one conversation (single-session creation is myopic and produces
@@ -261,8 +290,27 @@ uv run $HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py proposals re
 ```
 
 - `recurrent=true` → you MAY create a new skill (proceed to `skill create`).
-- `recurrent=false` → you MUST NOT `skill create`. Record the pattern as a
-  **memory** instead (`memory add`), or **strengthen** an existing skill/memory.
+- `recurrent=false` → you MUST NOT `skill create`. **Write or update a
+  pattern page in the wiki** — the durable notebook of diagnosed patterns —
+  capturing trigger condition, root cause, exact resolution (commands
+  verbatim), and evidence session IDs:
+
+  ```bash
+  # dedup first: does a page for this topic already exist?
+  uv run $HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py wiki read "<key terms>"
+
+  # exists → update it with the new evidence (via autolearn.py wiki commands;
+  #          edit wiki/patterns/<slug>.md directly, keeping it under 100 lines)
+  # new   → create wiki/patterns/<slug>.md with: problem title, ## Trigger,
+  #          ## Root Cause, ## Resolution, ## Evidence (session IDs), and an
+  #          Updated: date line, then add one catalog line to wiki/index.md:
+  #          - [slug](patterns/slug.md): PROBLEM + root cause + fix
+  #          and append a summary line to wiki/logs.md
+  ```
+
+  The pattern page is where rich diagnosis lives when recurrence hasn't
+  accumulated yet — do NOT squash it into a thin memory line. You MAY
+  additionally record a one-line memory pointing at the page.
   If the pattern genuinely recurs in later sessions, the proposer will stage it
   and auto-promote it once verified — nothing is lost, creation is just deferred
   until evidence accumulates.
@@ -276,8 +324,11 @@ If you see a repeatable pattern, technique, or workflow that **passed the
 recurrence gate** and deserves its own skill:
 
 ```bash
-uv run $HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py skill create <name> "<description>"
+uv run $HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py skill create <name> "<description>" --patterns "<comma-separated pattern slugs>"
 ```
+
+The `--patterns` flag links the skill to its motivating wiki pattern page(s)
+in PURPOSE.md. If the skill came from a pattern page, always pass it.
 
 If an existing skill was wrong or incomplete:
 
@@ -330,7 +381,8 @@ you decided not to record some of them. This enables future gap analysis.
 
 - Never modify project source code. Only write to `~/.autolearn/`.
 - Never write secrets, API keys, or credentials to memory or skills.
-- Never create more than 2 new skills per review.
+- Never create more than ONE new skill per review (one skill change total:
+  create OR patch).
 - The memory registry is unbounded — entries leave only via Ebbinghaus decay
   (cold for `eviction_grace_days`), not a character cap. Prefer `memory
   strengthen` over `memory add` for semantic duplicates to keep it clean.
@@ -348,6 +400,7 @@ After taking actions, output a brief summary:
 Autolearn review complete:
 - Observations recorded: N
 - Memory updated: yes/no
+- Wiki patterns written/updated: N
 - Skills created: N
 - Skills patched: N
 - User profile updated: yes/no
