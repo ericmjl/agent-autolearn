@@ -1,0 +1,24 @@
+docs/high-level-design.md
+  h_923f9eef54c2c1 23-32,350-377,400-406,448-452,485
+skills/autolearn-reviewer/SKILL.md
+  h_923f9eef54c2c1 178-202,279-282,293-313,327,330-332,384-385,403
+skills/autolearn-reviewer/scripts/autolearn.py
+  h_923f9eef54c2c1 78-81,482-495,545-599,947-961,1019-1031,1061-1069,1172-1180,1205-1210,2348,2388-2414,2574-2587
+skills/autolearn-reviewer/scripts/inspector_server.py
+  h_923f9eef54c2c1 218-225
+skills/autolearn-reviewer/scripts/test_wiki.py
+  h_923f9eef54c2c1 1-184
+skills/autolearn-reviewer/scripts/wiki.py
+  h_923f9eef54c2c1 1-567
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "37d8426fafbac0584fe86be762693aec57983f6f",
+  "prompts": {},
+  "humans": {
+    "h_923f9eef54c2c1": {
+      "author": "Eric Ma <ericmajinglong@gmail.com>"
+    }
+  }
+}
