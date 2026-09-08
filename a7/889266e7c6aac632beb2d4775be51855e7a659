@@ -1,0 +1,16 @@
+docs/designs/wiki-layer/LLD.md
+  h_923f9eef54c2c1 1-346
+docs/designs/wiki-layer/wiki-layer-EARS.md
+  h_923f9eef54c2c1 1-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a7889266e7c6aac632beb2d4775be51855e7a659",
+  "prompts": {},
+  "humans": {
+    "h_923f9eef54c2c1": {
+      "author": "Eric Ma <ericmajinglong@gmail.com>"
+    }
+  }
+}
