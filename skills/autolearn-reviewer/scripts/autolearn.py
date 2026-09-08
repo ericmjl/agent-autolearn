@@ -75,6 +75,10 @@ import shortcuts
 # See docs/designs/long-horizon-skills/LLD.md.
 import proposer
 
+# Wiki layer (persistent pattern store + skill-impact ledger).
+# See docs/designs/wiki-layer/LLD.md.
+import wiki as wiki_layer
+
 # @spec KS-MEM-020
 DATA_HOME = Path(os.environ.get("AUTOLEARN_HOME", Path.home() / ".autolearn"))
 
@@ -475,6 +479,20 @@ def promote_proposals() -> dict:
                 pass
         p["status"] = "promoted"
         p["promoted_skill"] = name
+        # @spec WIKI-IMP-003, WIKI-SKL-001 — ledger + provenance for promoted skills
+        if wiki_layer.enabled(ACTIVE_PERSONA_DIR):
+            try:
+                wiki_layer.append_skill_impact(
+                    ACTIVE_PERSONA_DIR, action="promote", skill=name,
+                    summary=f"auto-promoted from proposal {p.get('id', '?')}: "
+                            f"{(p.get('request_summary') or '')[:200]}",
+                    outcome="accepted", trigger="proposer")
+                wiki_layer.write_purpose(
+                    skill_dir, origin=(p.get("request_summary") or
+                                       "auto-promoted from a recurring pattern"),
+                    patterns=[], evolution="auto-promoted by proposer")
+            except Exception:
+                pass
         created.append(name)
     save_usage(usage)
     proposer._save(ACTIVE_PERSONA_DIR, proposals)
@@ -522,6 +540,61 @@ def prune_unused_skills(config: dict) -> dict:
     if archived:
         save_usage(usage)
     return {"archived": archived, "grace_days": grace}
+
+
+# @spec WIKI-CUR-001 — wiki consolidation (curator pass)
+def consolidate_wiki(config: dict) -> dict:
+    """Write a tombstone for stale patterns superseded by a skill.
+
+    A pattern untouched longer than ``stale_after_days`` whose topic is
+    represented by a promoted skill gets a one-line tombstone in
+    ``wiki/consolidated/`` and loses its index entry. The pattern page
+    itself is never deleted (the wiki is append-only history).
+    """
+    stale_days = int(config.get("stale_after_days", 30))
+    today = date.today()
+    if not wiki_layer.enabled(ACTIVE_PERSONA_DIR):
+        return {"consolidated": []}
+    usage = load_usage()
+    promoted = {m.get("promoted_from") for m in usage.values()
+                if m.get("promoted_from")}
+    active_skill_names = {n for n, m in usage.items()
+                          if m.get("created_by") == "autolearn"
+                          and m.get("state") != "archived"}
+    consolidated = []
+    for p in wiki_layer.list_patterns(ACTIVE_PERSONA_DIR):
+        slug, updated = p["slug"], p.get("updated", "unknown")
+        try:
+            days = (today - date.fromisoformat(updated)).days
+        except ValueError:
+            continue  # unparseable date -> leave alone
+        if days < stale_days:
+            continue
+        # superseded heuristic: an active autolearn skill exists whose name
+        # shares >= 2 tokens with the slug
+        slug_toks = wiki_layer.tokens(slug.replace("-", " "))
+        matched = _skills_matching_slug(active_skill_names, slug_toks)
+        if not matched:
+            continue
+        tomb = wiki_layer.consolidated_dir(ACTIVE_PERSONA_DIR) / f"{slug}.tombstone.md"
+        if not tomb.exists():
+            tomb.write_text(
+                f"- {today.isoformat()}: consolidated {slug} -> skill "
+                f"'{matched[0]}' (superseded; page retained in patterns/)\n",
+                encoding="utf-8")
+        wiki_layer.remove_index_entry(ACTIVE_PERSONA_DIR, slug)
+        consolidated.append(slug)
+    return {"consolidated": consolidated}
+
+
+def _skills_matching_slug(skill_names: set, slug_toks: set) -> list[str]:
+    toks = {t for t in slug_toks if len(t) >= 3}
+    out = []
+    for n in skill_names:
+        n_toks = wiki_layer.tokens(n.replace("-", " "))
+        if len(toks & n_toks) >= 2:
+            out.append(n)
+    return out
 
 
 def load_config() -> dict:
@@ -871,6 +944,21 @@ TODO: Add specific instructions based on observed patterns.
     }
     save_usage(usage)
 
+    # @spec WIKI-IMP-001, WIKI-SKL-001 — harness-written ledger + provenance
+    if wiki_layer.enabled(ACTIVE_PERSONA_DIR):
+        try:
+            wiki_layer.ensure_scaffold(ACTIVE_PERSONA_DIR)
+            wiki_layer.append_skill_impact(
+                ACTIVE_PERSONA_DIR, action="create", skill=name,
+                summary=desc[:300], outcome="accepted", trigger="review")
+            purpose_patterns = [s.strip() for s in
+                                getattr(args, "patterns", "").split(",") if s.strip()]
+            wiki_layer.write_purpose(
+                skill_dir, origin=desc[:300], patterns=purpose_patterns,
+                evolution="created")
+        except Exception as exc:
+            print(f"(wiki ledger/provenance skipped: {exc})")
+
     link_path = AGENTS_SKILLS_DIR / name
     AGENTS_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
     if not link_path.exists():
@@ -928,6 +1016,19 @@ def cmd_skill_patch(args):
         usage[name]["last_activity_at"] = date.today().isoformat()
     save_usage(usage)
 
+    # @spec WIKI-IMP-001, WIKI-SKL-002 — harness-written ledger + provenance append
+    if wiki_layer.enabled(ACTIVE_PERSONA_DIR):
+        try:
+            wiki_layer.append_skill_impact(
+                ACTIVE_PERSONA_DIR, action="patch", skill=name,
+                summary=f"[{section}] {content[:250]}", outcome="accepted",
+                trigger="review")
+            wiki_layer.write_purpose(
+                SKILLS_DIR / name, origin="", patterns=[],
+                evolution=f"patched section '{section}'")
+        except Exception as exc:
+            print(f"(wiki ledger/provenance skipped: {exc})")
+
     print(f"Patched skill: {name} (section: {section})")
 
 
@@ -956,6 +1057,15 @@ def cmd_skill_archive(args):
         usage[name]["state"] = "archived"
         usage[name]["archived_at"] = date.today().isoformat()
     save_usage(usage)
+
+    # @spec WIKI-IMP-001 — harness-written ledger
+    if wiki_layer.enabled(ACTIVE_PERSONA_DIR):
+        try:
+            wiki_layer.append_skill_impact(
+                ACTIVE_PERSONA_DIR, action="archive", skill=name,
+                summary="archived", outcome="archived", trigger="curator")
+        except Exception as exc:
+            print(f"(wiki ledger skipped: {exc})")
 
     print(f"Archived skill: {name}")
 
@@ -1059,6 +1169,15 @@ def cmd_curator_run(args):
         save_usage(usage)
         cp["falsify"] = {k: summary[k] for k in ("pass", "fail", "inconclusive")}
         cp["falsify"]["demoted"] = len(cons["demoted"])
+        # @spec WIKI-IMP-002 — demotions are harness-recorded verdicts
+        if wiki_layer.enabled(ACTIVE_PERSONA_DIR) and cons["demoted"]:
+            wiki_layer.ensure_scaffold(ACTIVE_PERSONA_DIR)
+            for flag in cons["demoted"]:
+                wiki_layer.append_skill_impact(
+                    ACTIVE_PERSONA_DIR, action="demote", skill=flag.get("skill", "?"),
+                    summary=f"failed falsification x{flag.get('fail_count', '?')}: "
+                            f"{flag.get('evidence', '')[:200]}",
+                    outcome="demoted", trigger="falsify")
     except Exception as exc:
         cp["falsify"] = {"error": str(exc)}
     try:
@@ -1082,6 +1201,12 @@ def cmd_curator_run(args):
             )
     except Exception as exc:
         lh["pruned"] = {"error": str(exc)}
+
+    # @spec WIKI-CUR-001 — wiki consolidation pass (best-effort, never fatal)
+    try:
+        lh["wiki_consolidated"] = consolidate_wiki(config)
+    except Exception as exc:
+        lh["wiki_consolidated"] = {"error": str(exc)}
 
     run_record = {
         "date": today.isoformat(),
@@ -2220,6 +2345,7 @@ def main():
     sk_create = sk_sub.add_parser("create", help="Create a new skill")
     sk_create.add_argument("name", help="Skill name")
     sk_create.add_argument("description", help="Skill description")
+    sk_create.add_argument("--patterns", default="", help="Comma-separated wiki pattern slugs motivating this skill (recorded in PURPOSE.md)")
     sk_patch = sk_sub.add_parser("patch", help="Patch an existing skill")
     sk_patch.add_argument("name", help="Skill name")
     sk_patch.add_argument("section", help="Section to patch")
@@ -2258,6 +2384,33 @@ def main():
     log_rc.add_argument("--skills-patched", type=int, default=0, help="Skills patched count")
     log_rc.add_argument("--topics", default="", help="Comma-separated topics in the conversation")
     log_rc.add_argument("--nothing", action="store_true", help="Nothing was recorded")
+
+    # Wiki layer: pattern store + evolution log + skill-impact ledger.
+    # Spec: docs/designs/wiki-layer/LLD.md
+    wl = sub.add_parser("wiki", help="Persistent pattern notebook (wiki layer)", parents=[persona_parent])
+    wl_sub = wl.add_subparsers(dest="subcommand")
+    wl_sub.add_parser("init", help="Create wiki/ scaffold + backfill PURPOSE.md")
+    wl_sub.add_parser("list", help="List pattern pages")
+    wl_show = wl_sub.add_parser("show", help="Print one pattern page")
+    wl_show.add_argument("slug", help="Pattern slug")
+    wl_read = wl_sub.add_parser("read", help="Lexically search the pattern index")
+    wl_read.add_argument("terms", help="Key terms to match against index one-liners")
+    wl_sub.add_parser("compose", help="Render wiki/context.md (reviewer-facing view)")
+    wl_sub.add_parser("backfill-purposes", help="Write PURPOSE.md for existing persona-local skills")
+
+    logs_w = sub.add_parser("logs", help="Wiki evolution log", parents=[persona_parent])
+    logs_sub = logs_w.add_subparsers(dest="subcommand")
+    logs_append = logs_sub.add_parser("append", help="Append a review summary to wiki/logs.md")
+    logs_append.add_argument("summary", help="One-line summary of this review's findings")
+
+    imp = sub.add_parser("impact", help="Skill-impact ledger (harness-written; debug append)", parents=[persona_parent])
+    imp_sub = imp.add_subparsers(dest="subcommand")
+    imp_append = imp_sub.add_parser("append", help="Append a ledger entry (debug/testing)")
+    imp_append.add_argument("--action", required=True, choices=["create", "patch", "demote", "archive", "promote"])
+    imp_append.add_argument("--skill", required=True)
+    imp_append.add_argument("--summary", required=True)
+    imp_append.add_argument("--outcome", required=True, choices=["accepted", "rejected", "demoted", "archived"])
+    imp_append.add_argument("--trigger", required=True, choices=["review", "falsify", "proposer", "curator"])
 
     sync = sub.add_parser("sync", help="Cross-machine sync (E2E-encrypted)", parents=[persona_parent])
     sync_sub = sync.add_subparsers(dest="subcommand")
@@ -2417,6 +2570,20 @@ def main():
             "recurrence": proposer.cmd_proposals_recurrence,
             "confirm": proposer.cmd_proposals_confirm,
             "dismiss": proposer.cmd_proposals_dismiss,
+        },
+        "wiki": {
+            "init": wiki_layer.cmd_wiki_init,
+            "list": wiki_layer.cmd_wiki_list,
+            "show": wiki_layer.cmd_wiki_show,
+            "read": wiki_layer.cmd_wiki_read,
+            "compose": wiki_layer.cmd_wiki_compose,
+            "backfill-purposes": wiki_layer.cmd_wiki_backfill,
+        },
+        "logs": {
+            "append": wiki_layer.cmd_logs_append,
+        },
+        "impact": {
+            "append": wiki_layer.cmd_impact_append,
         },
     }
 
