@@ -60,7 +60,11 @@ bash opencode-autolearn/install.sh
 
 ### Verify
 
-After installing, restart OpenCode. The plugin activates automatically. You can confirm by running:
+After installing, restart OpenCode to load the plugin. With `opencode2` you can
+hot-reload in place — `opencode2 service restart` reloads plugins/config
+without quitting open sessions (note: running it from inside an agent session
+cancels that in-flight shell command, but the session survives and reconnects).
+You can confirm the plugin by running:
 
 ```bash
 uv run ~/.agents/skills/autolearn-reviewer/scripts/autolearn.py memory list
