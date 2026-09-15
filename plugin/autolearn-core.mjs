@@ -240,7 +240,7 @@ if ! mkdir "\$GATE" 2>/dev/null; then
     exit 0
   fi
 fi
-printf '%s\n' "\$NOW" > "\$GATE/ts" 2>/dev/null
+printf '%s\\n' "\$NOW" > "\$GATE/ts" 2>/dev/null
 trap 'rm -rf "\$GATE" 2>/dev/null' EXIT
 # Record start BEFORE running so a killed review still consumes the interval
 # (fail-safe: a broken binary must not cause an endless retry loop).
@@ -251,7 +251,11 @@ if [ -z "\$OC" ]; then
 fi
 OUT=\$(mktemp "\${TMPDIR:-/tmp}/alreview.XXXXXX")
 "\$OC" run --format json "\$@" > "\$OUT" 2>/dev/null
-SID=\$(sed -n 's/.*"sessionID"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "\$OUT" | head -1)
+# BRE backslashes below are DOUBLED (\\\\, \\1) because this script lives
+# inside a JS template literal — single backslashes get eaten by the escape
+# evaluation (\\( -> ( , \\1 -> 0x01 control char under Bun) and the sed
+# silently extracts nothing (issue #15).
+SID=\$(sed -n 's/.*"sessionID"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' "\$OUT" | head -1)
 rm -f "\$OUT"
 if [ -n "\$SID" ]; then
   case "\$(basename "\$OC")" in
