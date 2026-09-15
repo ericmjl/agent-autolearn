@@ -1,0 +1,21 @@
+plugin/autolearn-core.mjs
+  s_49358ff3240bb9::t_faf33c8fd210e4 254-257
+  s_49358ff3240bb9::t_647693a9f04694 243
+  s_49358ff3240bb9::t_cc237e48976af3 258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c68849a32e82e34bdb33948192d163986a6ca42d",
+  "prompts": {},
+  "sessions": {
+    "s_49358ff3240bb9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f589f59e5ffeaMl48NzkAEtyr3",
+        "model": "unknown"
+      },
+      "human_author": "Eric Ma <ericmajinglong@gmail.com>"
+    }
+  }
+}
