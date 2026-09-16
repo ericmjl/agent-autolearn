@@ -32,7 +32,7 @@
 ## Reviewer Guard
 
 - [x] **CM-GUARD-001**: If the `AUTOLEARN_REVIEWER` environment variable is set to "1", the system shall not register any event hooks.
-- [x] **CM-GUARD-002**: The system shall set a global symbol guard to prevent double-initialization if the plugin module is loaded twice.
+- [x] **CM-GUARD-002**: The system shall set a global symbol guard to prevent double-initialization if the plugin module is loaded twice. *(Amended 2026-09-16, issue #14: the guard symbol is keyed by directory — `Symbol.for("opencode:autolearn:<directory>")`. A single global key let the first-loaded project's instance monitor while the active project's instance hit the guard and returned empty hooks, since opencode v1 loads the plugin once per directory in one process. Per-directory keys keep the same-directory double-load protection and make every monitored project's instance independently primary. v2 is unaffected: its event stream is location-scoped with no guard.)*
 
 ## Related Documents
 

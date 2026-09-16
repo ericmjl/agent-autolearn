@@ -48,6 +48,11 @@
 - [ ] **CM-RS-018**: The exit review shall use a synchronous spawn (write file + detached subprocess) to ensure the review is dispatched before the process terminates.
 - [ ] **CM-RS-019**: The exit review shall not block or delay process shutdown.
 
+## Cross-Process Throttle
+
+- [x] **CM-RS-020**: The system shall gate every review spawn through a cross-process throttle that denies (a) a review whose Conversation-section hash matches the last committed review, (b) a spawn within `min_interval_ms` (default 3 min) of the last committed review, and (c) spawns beyond `max_reviews_per_day` (default 60) per calendar day.
+- [x] **CM-RS-021** (2026-09-16, issue #14): When a plugin shell speculates on a review before clearing its buffer, the system shall check the throttle in peek mode (`commit: false`) so no lock is written; `runReviewSubprocess` shall be the single committing gate. A committing pre-check wrote the lock, and the authoritative gate then matched its own hash and suppressed the spawn.
+
 ## Related Documents
 
 - [Conversation Monitoring LLD](./LLD.md)
