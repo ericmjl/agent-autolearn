@@ -102,8 +102,11 @@ export default {
       // Speculate on the review content BEFORE clearing the buffer: if the
       // throttle denies the spawn (busy window / duplicate), the buffer stays
       // intact and this content rides the NEXT trigger instead of being lost.
+      // PEEK ONLY (commit: false): committing here would write the lock that
+      // the authoritative gate in runReviewSubprocess then matches against,
+      // suppressing every review (issue #14).
       const reviewMd = core.formatReview(st.buffer, { project: projectName(), trigger })
-      if (!core.throttleCheck(reviewMd)) {
+      if (!core.throttleCheck(reviewMd, false)) {
         core.dbg("REVIEW QUEUED by throttle (v2)", st.buffer.length, "messages, trigger", trigger)
         return
       }

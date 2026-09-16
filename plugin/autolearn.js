@@ -17,8 +17,6 @@ import { writeFileSync } from "fs"
 import { join } from "path"
 import * as core from "./autolearn-core.mjs"
 
-const GUARD = Symbol.for("opencode:autolearn")
-
 // @spec CM-GUARD-001
 export const AutolearnPlugin = async (ctx) => {
   if (process.env.AUTOLEARN_DISABLED === "1") return {}
@@ -31,10 +29,17 @@ export const AutolearnPlugin = async (ctx) => {
   core.ensureStore()
 
   // @spec CM-GUARD-002
-  const isPrimary = !globalThis[GUARD]
-  if (isPrimary) globalThis[GUARD] = true
+  // Keyed by directory: opencode loads the plugin once per directory in a
+  // single process, so a single global symbol made the FIRST-loaded project
+  // the only monitor while the active project's instance saw the guard set
+  // and went silent (issue #14). Per-directory keys keep the anti-duplicate-
+  // load protection for same-directory double-loads while letting each
+  // monitored project's instance be primary in its own right.
+  const guard = Symbol.for("opencode:autolearn:" + (directory || worktree || process.cwd()))
+  const isPrimary = !globalThis[guard]
+  if (isPrimary) globalThis[guard] = true
   if (!isPrimary) {
-    core.dbg("SKIPPING: secondary plugin instance, guard already set")
+    core.dbg("SKIPPING: secondary plugin instance for this directory, guard already set")
     return {}
   }
 
@@ -73,8 +78,11 @@ export const AutolearnPlugin = async (ctx) => {
     // Speculate on the review content BEFORE clearing the buffer: if the
     // throttle denies the spawn (busy window / duplicate), the buffer stays
     // intact and this content rides the NEXT trigger instead of being lost.
+    // PEEK ONLY (commit: false): committing here would write the lock that
+    // the authoritative gate in runReviewSubprocess then matches against,
+    // suppressing every review (issue #14).
     const reviewMd = core.formatReview(buffer, { project: projectName(), trigger })
-    if (!core.throttleCheck(reviewMd)) {
+    if (!core.throttleCheck(reviewMd, false)) {
       core.dbg("REVIEW QUEUED by throttle (v1)", buffer.length, "messages, trigger", trigger)
       return
     }

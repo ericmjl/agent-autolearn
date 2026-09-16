@@ -116,10 +116,10 @@ When triggered (threshold or idle):
 
 1. Check `buffer.length > 0` and `!reviewInProgress`
 2. Guard against review loops: skip if buffer text contains `"# Autolearn Review"` heading
-3. Set `reviewInProgress = true`
-4. Capture buffer, clear it
-5. Format review markdown via `formatReview()`
-6. Write to `~/.autolearn/reviews/review-{Date.now()}.md`
+3. Format the review markdown speculatively and peek at the throttle (`throttleCheck(md, false)`) — if denied (busy window / duplicate), keep the buffer intact so the content rides the next trigger
+4. Set `reviewInProgress = true`
+5. Capture buffer, clear it
+6. `runReviewSubprocess()` re-checks the throttle as the single committing gate (writes the lock on a pass), writes to `~/.autolearn/reviews/review-{Date.now()}.md`
 7. Spawn `opencode run <reviewMd> --agent autolearn-reviewer` with `AUTOLEARN_REVIEWER=1` env
 8. Log observation to `observations.jsonl`
 9. Clean stale review files
@@ -132,7 +132,7 @@ After each spawn, scan `~/.autolearn/reviews/` for files older than `stale_after
 ## Guard Mechanism
 
 - `AUTOLEARN_REVIEWER=1` env var: plugin returns empty hooks, preventing recursive turn counting inside review subagents.
-- `globalThis[Symbol.for("opencode:autolearn")]`: prevents double-initialization if plugin is loaded twice.
+- `globalThis[Symbol.for("opencode:autolearn:<directory>")]`: prevents double-initialization if the plugin is loaded twice for the same directory. Keyed per directory (issue #14): opencode v1 loads the plugin once per directory in a single process, and a single global key silenced every instance except the first-loaded one — often not the active project. v2's location-scoped event stream needs no guard.
 - Buffer depth check: if formatted review text contains the review heading, the spawn is skipped (catches review-of-review scenarios).
 
 ## Memory Instructions Injection

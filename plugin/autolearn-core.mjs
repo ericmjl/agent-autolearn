@@ -455,8 +455,13 @@ export function cleanStaleReviews(config) {
  * project/directory) share one LLM provider budget, so a global lock file
  * gates spawns across all of them.
  *
- * Returns true when a spawn is allowed; side effect: bumps the last-review
- * timestamp so the NEXT allowed spawn is delayed by min_interval_ms.
+ * Returns true when a spawn is allowed; when `commit` is true (default) it
+ * also bumps the last-review timestamp so the NEXT allowed spawn is delayed
+ * by min_interval_ms. Pass `commit: false` to PEEK without writing the lock —
+ * the shells use this to speculate before clearing their buffer, while
+ * `runReviewSubprocess` remains the single committing gate (a committing
+ * pre-check would write the lock and the authoritative check would then
+ * match its own hash and suppress the spawn — issue #14).
  * Three layers (checked in order, cheapest first):
  *   1. Content (all projects): a hash of the review's Conversation section;
  *      the identical conversation snapshot (e.g. the same idle moment seen
@@ -479,7 +484,7 @@ export function contentHash(str) {
   return (h >>> 0).toString(16)
 }
 
-export function throttleCheck(reviewMd) {
+export function throttleCheck(reviewMd, commit = true) {
   // Hash the CONVERSATION section only, not the whole md: the Context header
   // (project name, timestamp) varies between plugin instances that observed
   // the same conversation, and those variants must still dedupe — that is
@@ -529,7 +534,12 @@ export function throttleCheck(reviewMd) {
     }
   }
 
-  try { writeFileSync(THROTTLE_FILE, `${now}:${contentHash(dedupeKey)}`) } catch {}
+  // Committing calls record the lock; peeking calls (commit: false) leave
+  // throttle state untouched so the authoritative gate in
+  // runReviewSubprocess can still admit this spawn (issue #14).
+  if (commit) {
+    try { writeFileSync(THROTTLE_FILE, `${now}:${contentHash(dedupeKey)}`) } catch {}
+  }
   return true
 }
 
