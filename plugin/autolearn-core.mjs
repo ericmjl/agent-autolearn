@@ -175,9 +175,11 @@ export function spawnDetached(cmd, opts = {}) {
 }
 
 // The wrapper is version-aware: it prefers `opencode2` when present (or the
-// binary named by AUTOLEARN_OPENCODE_BIN, set by the v2 plugin shell) and
-// falls back to `opencode`. Session cleanup uses the v2 HTTP API when the
-// selected binary is opencode2 (no `session delete` CLI subcommand in v2).
+// binary named by AUTOLEARN_OPENCODE_BIN — set by BOTH plugin shells: the v1
+// shell pins `opencode`, the v2 shell pins `opencode2`, so each review runs
+// under the binary that spawned it) and falls back to `opencode`. Session
+// cleanup uses the v2 HTTP API when the selected binary is opencode2 (no
+// `session delete` CLI subcommand in v2).
 const WRAPPER_CONTENT = `#!/bin/sh
 # Autolearn review runner - runs an opencode review, deletes the session,
 # then pushes the updated store via sync (if configured).
@@ -255,6 +257,9 @@ OUT=\$(mktemp "\${TMPDIR:-/tmp}/alreview.XXXXXX")
 # inside a JS template literal — single backslashes get eaten by the escape
 # evaluation (\\( -> ( , \\1 -> 0x01 control char under Bun) and the sed
 # silently extracts nothing (issue #15).
+# Output contract (verified against opencode v1.0.142..v1.18.31 and v2.0.3):
+# both binaries emit "run --format json" as JSONL with a top-level
+# "sessionID" on every line, so line-by-line sed extraction is safe.
 SID=\$(sed -n 's/.*"sessionID"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' "\$OUT" | head -1)
 rm -f "\$OUT"
 if [ -n "\$SID" ]; then
