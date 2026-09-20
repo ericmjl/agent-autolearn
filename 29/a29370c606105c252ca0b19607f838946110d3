@@ -1,0 +1,18 @@
+plugin/autolearn-core.mjs
+  h_923f9eef54c2c1 482-487,537
+plugin/autolearn-v2.js
+  h_923f9eef54c2c1 105-107,109
+plugin/autolearn.js
+  h_923f9eef54c2c1 76-78,80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "29a29370c606105c252ca0b19607f838946110d3",
+  "prompts": {},
+  "humans": {
+    "h_923f9eef54c2c1": {
+      "author": "Eric Ma <ericmajinglong@gmail.com>"
+    }
+  }
+}
