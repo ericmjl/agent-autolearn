@@ -1,13 +1,17 @@
 /**
- * Autolearn Plugin — shared core for OpenCode v1 and v2 (beta).
+ * Autolearn Plugin — shared core for all harness adapters.
  *
- * All version-independent logic lives here: store management, config,
- * redaction, instruction injection, memory composition, sync, the review
- * wrapper script, review formatting, and detached subprocess spawning.
+ * All harness-independent logic lives here: store management, config,
+ * redaction, memory composition, sync, the review wrapper script, review
+ * formatting, throttles, and detached subprocess spawning. The enforced
+ * methodology (review every N user messages, idle + exit reviews, one
+ * skill change per review, multi-layer throttle) is defined HERE so every
+ * harness adapter gets identical behavior.
  *
- * Consumers:
+ * Consumers (shells — each ~300 lines of harness-specific event plumbing):
  *   plugin/autolearn.js     — OpenCode v1 shell (function default export)
  *   plugin/autolearn-v2.js  — OpenCode v2 shell (plain-object plugin)
+ *   plugin/autolearn-pi.ts  — pi shell (ExtensionAPI)
  *
  * No imports outside Node/Bun builtins so the module resolves under both
  * plugin loaders without a package.json or node_modules.
@@ -49,7 +53,15 @@ export const ARCHIVE_DIR = join(SKILLS_DIR, ".archive")
 export const WRAPPER_SCRIPT = join(BIN_DIR, "review-runner.sh")
 export const SYNC_CONFIG_FILE = join(AL_HOME, "sync.yaml")
 export const SALT_FILE = join(AL_HOME, ".encryption_salt")
-export const AUTOLEARN_CLI = join(homedir(), ".agents", "skills", "autolearn-reviewer", "scripts", "autolearn.py")
+// Skills consolidated into a single `autolearn` skill (scripts/ moved from
+// autolearn-reviewer). Resolve the new path, fall back to the legacy one for
+// installs that predate the consolidation.
+function resolveCli() {
+  const fresh = join(homedir(), ".agents", "skills", "autolearn", "scripts", "autolearn.py")
+  try { if (existsSync(fresh)) return fresh } catch {}
+  return join(homedir(), ".agents", "skills", "autolearn-reviewer", "scripts", "autolearn.py")
+}
+export const AUTOLEARN_CLI = resolveCli()
 export const THRESHOLD_DEFAULT = 5 // in USER messages (exchanges), not assistant turns
 export const STALE_DAYS_DEFAULT = 30
 export const IDLE_COOLDOWN_MS = 300000
@@ -174,12 +186,13 @@ export function spawnDetached(cmd, opts = {}) {
   return proc
 }
 
-// The wrapper is version-aware: it prefers `opencode2` when present (or the
-// binary named by AUTOLEARN_OPENCODE_BIN — set by BOTH plugin shells: the v1
-// shell pins `opencode`, the v2 shell pins `opencode2`, so each review runs
-// under the binary that spawned it) and falls back to `opencode`. Session
-// cleanup uses the v2 HTTP API when the selected binary is opencode2 (no
-// `session delete` CLI subcommand in v2).
+// The wrapper is harness-aware: it runs the review under the binary named by
+// AUTOLEARN_HARNESS_BIN (set by each shell: v1 pins `opencode`, v2 pins
+// `opencode2`, the pi shell pins `pi`), falling back to
+// AUTOLEARN_OPENCODE_BIN (legacy name, still honored), then to detection.
+// pi runs reviews as one-shot print-mode processes with --no-session, so no
+// session cleanup is needed; opencode keeps the run/delete dance (v2 via the
+// HTTP API, which has no `session delete` CLI subcommand).
 const WRAPPER_CONTENT = `#!/bin/sh
 # Autolearn review runner - runs an opencode review, deletes the session,
 # then pushes the updated store via sync (if configured).
@@ -247,9 +260,22 @@ trap 'rm -rf "\$GATE" 2>/dev/null' EXIT
 # Record start BEFORE running so a killed review still consumes the interval
 # (fail-safe: a broken binary must not cause an endless retry loop).
 printf '%s:%s\\n' "\$NOW" "\$HASH" > "\$LOCK" 2>/dev/null
-OC="\${AUTOLEARN_OPENCODE_BIN:-}"
+OC="\${AUTOLEARN_HARNESS_BIN:-\${AUTOLEARN_OPENCODE_BIN:-}}"
 if [ -z "\$OC" ]; then
-  if command -v opencode2 >/dev/null 2>&1; then OC=opencode2; else OC=opencode; fi
+  if command -v pi >/dev/null 2>&1; then OC=pi
+  elif command -v opencode2 >/dev/null 2>&1; then OC=opencode2
+  else OC=opencode; fi
+fi
+# pi branch: one-shot print-mode review, ephemeral (--no-session),
+# project-local resources ignored (-na), review md piped on stdin.
+if [ "\$(basename "\$OC")" = "pi" ]; then
+  printf '%s' "\$1" | "\$OC" -p --no-session -na >/dev/null 2>&1
+  AL_CLI="\$HOME/.agents/skills/autolearn/scripts/autolearn.py"
+  [ -f "\$AL_CLI" ] || AL_CLI="\$HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py"
+  if [ -n "\${AUTOLEARN_SYNC_API_KEY:-}" ] && [ -f "\${HOME}/.autolearn/.encryption_salt" ] && [ -f "\$AL_CLI" ]; then
+    uv run "\$AL_CLI" sync push >/dev/null 2>&1
+  fi
+  exit 0
 fi
 OUT=\$(mktemp "\${TMPDIR:-/tmp}/alreview.XXXXXX")
 "\$OC" run --format json "\$@" > "\$OUT" 2>/dev/null
@@ -270,8 +296,10 @@ if [ -n "\$SID" ]; then
 fi
 # Push after review completes so reviewer-written changes are included.
 # Stays silent when sync isn't configured (no API key or no salt).
-if [ -n "\${AUTOLEARN_SYNC_API_KEY}" ] && [ -f "\${HOME}/.autolearn/.encryption_salt" ]; then
-  uv run "\${HOME}/.agents/skills/autolearn-reviewer/scripts/autolearn.py" sync push >/dev/null 2>&1
+AL_CLI="\$HOME/.agents/skills/autolearn/scripts/autolearn.py"
+[ -f "\$AL_CLI" ] || AL_CLI="\$HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py"
+if [ -n "\${AUTOLEARN_SYNC_API_KEY}" ] && [ -f "\$HOME/.autolearn/.encryption_salt" ] && [ -f "\$AL_CLI" ]; then
+  uv run "\$AL_CLI" sync push >/dev/null 2>&1
 fi
 `
 
@@ -396,7 +424,9 @@ export function formatReview(messages, meta = {}) {
   md += `- Turns in this review: ${messages.length}\n`
   md += `- Trigger: ${trigger}\n\n`
   md += "## Instructions\n\n"
-  md += 'Review the conversation below for learning opportunities.\nLoad the autolearn-reviewer skill with: skill({ name: "autolearn-reviewer" })\n\n'
+  md += "Review the conversation below for learning opportunities.\n"
+  md += "Load the autolearn skill and follow references/reviewer.md for the\n"
+  md += "full signal taxonomy and action protocol.\n\n"
   md += "Focus on:\n\n"
   md += "1. User corrections (style, approach, tools) — \"don't do X\", \"use Y instead\"\n"
   md += "2. User preferences AND declarative workflow specs — not just corrections.\n"
