@@ -1,0 +1,73 @@
+plugin/autolearn-core.mjs
+  s_da081fe3b1ac97::t_1e7d58d1936e06 2,4-9,11,14,56-64,189-195,263,265-278,299-302,427-429
+skills/autolearn/SKILL.md
+  s_da081fe3b1ac97::t_30fd52a20a69a8 1-153
+skills/autolearn/scripts/autolearn.py
+  s_da081fe3b1ac97::t_8f752d3eb89c87 1-2617
+skills/autolearn/scripts/composer.py
+  s_da081fe3b1ac97::t_039380bc3d3999 1-102
+skills/autolearn/scripts/falsify.py
+  s_da081fe3b1ac97::t_bb706a57b3a5bc 1-380
+skills/autolearn/scripts/improve.py
+  s_da081fe3b1ac97::t_249b4049132112 1-724
+skills/autolearn/scripts/inspector_server.py
+  s_da081fe3b1ac97::t_281e05d19dcbb4 1-430
+skills/autolearn/scripts/outcomes.py
+  s_da081fe3b1ac97::t_b9b351561358ee 1-480
+skills/autolearn/scripts/proposer.py
+  s_da081fe3b1ac97::t_c24340866adf1f 1-444
+skills/autolearn/scripts/registry.py
+  s_da081fe3b1ac97::t_0654aecfb7927c 1-386
+skills/autolearn/scripts/retention.py
+  s_da081fe3b1ac97::t_eb13aa34e1364f 1-186
+skills/autolearn/scripts/shift.py
+  s_da081fe3b1ac97::t_10c007cb205f10 1-277
+skills/autolearn/scripts/shortcuts.py
+  s_da081fe3b1ac97::t_fdd65aafe59ecb 1-264
+skills/autolearn/scripts/sync_crypto.py
+  s_da081fe3b1ac97::t_2a4ca76c231c50 1-306
+skills/autolearn/scripts/test_composer.py
+  s_da081fe3b1ac97::t_08340c3c011117 1-67
+skills/autolearn/scripts/test_falsify.py
+  s_da081fe3b1ac97::t_9cf4748040d594 1-231
+skills/autolearn/scripts/test_inspector_server.py
+  s_da081fe3b1ac97::t_377a7ae646e91a 1-105
+skills/autolearn/scripts/test_outcomes.py
+  s_da081fe3b1ac97::t_083b71a95547fa 1-303
+skills/autolearn/scripts/test_proposer.py
+  s_da081fe3b1ac97::t_7bab2a9b64fb32 1-234
+skills/autolearn/scripts/test_registry.py
+  s_da081fe3b1ac97::t_2395d2293cdec1 1-149
+skills/autolearn/scripts/test_repair_skill_use_counts.py
+  s_da081fe3b1ac97::t_ce576d4b6f76ef 1-459
+skills/autolearn/scripts/test_retention.py
+  s_da081fe3b1ac97::t_b91197558c965d 1-77
+skills/autolearn/scripts/test_shift.py
+  s_da081fe3b1ac97::t_13026e8ce0a7b9 1-64
+skills/autolearn/scripts/test_shortcuts.py
+  s_da081fe3b1ac97::t_7fc44f9aef804f 1-192
+skills/autolearn/scripts/test_sync_crypto.py
+  s_da081fe3b1ac97::t_c92644ce052e79 1-259
+skills/autolearn/scripts/test_sync_e2e.py
+  s_da081fe3b1ac97::t_953e4b02fe523e 1-326
+skills/autolearn/scripts/test_wiki.py
+  s_da081fe3b1ac97::t_fa7679dbea2b7c 1-184
+skills/autolearn/scripts/wiki.py
+  s_da081fe3b1ac97::t_54ac8730c402d1 1-567
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0f5e30089c644ef34a036a6808b8a3fb2e0621d3",
+  "prompts": {},
+  "sessions": {
+    "s_da081fe3b1ac97": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0c119-10f2-7586-8220-f8158c17caf2",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "Eric Ma <ericmajinglong@gmail.com>"
+    }
+  }
+}
