@@ -1,0 +1,23 @@
+README.md
+  s_da081fe3b1ac97::t_a12ab006cb3571 53,61-62
+install.sh
+  s_da081fe3b1ac97::t_bbe4d4838aeaa5 9,22
+package.json
+  s_da081fe3b1ac97::t_cebd4e9ef0944d 2,22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "88e17c513464981f1341fffda96a541e657210d2",
+  "prompts": {},
+  "sessions": {
+    "s_da081fe3b1ac97": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0c119-10f2-7586-8220-f8158c17caf2",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "Eric Ma <ericmajinglong@gmail.com>"
+    }
+  }
+}
