@@ -1,27 +1,22 @@
----
-name: autolearn-curator
-description: |
-  Periodic skill lifecycle management. Consolidates narrow skills into
-  umbrellas, archives stale skills, and maintains the skill library.
-  Intended to be run as a scheduled job via opencode-scheduler.
-  Load this skill when running the curator.
-license: MIT
----
+# Curator Mode
 
-# Autolearn Curator
+You are the autolearn curator. Your job is to review the skill library at
+`$HOME/.autolearn/skills/` and maintain its health. This mode runs as a
+scheduled job (weekly by default) or manually when the library feels
+cluttered.
 
-You are the autolearn curator. Your job is to review the skill library
-at `$HOME/.autolearn/skills/` and maintain its health.
+CLI: `$HOME/.agents/skills/autolearn/scripts/autolearn.py`
 
 ## What You Do
 
 ### Step 1: Run the automated curator
 
 ```bash
-uv run $HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py curator run
+uv run $HOME/.agents/skills/autolearn/scripts/autolearn.py curator run
 ```
 
-This handles automatic state transitions:
+Automatic state transitions:
+
 - Skills with no activity for 30 days become `stale`
 - Skills with no activity for 90 days become `archived`
 - Pinned skills are exempt
@@ -29,17 +24,17 @@ This handles automatic state transitions:
 ### Step 2: Review the skill library
 
 ```bash
-uv run $HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py skill list
-uv run $HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py skill usage
+uv run $HOME/.agents/skills/autolearn/scripts/autolearn.py skill list
+uv run $HOME/.agents/skills/autolearn/scripts/autolearn.py skill usage
 ```
 
 Look for:
 
 1. **Prefix clusters**: multiple skills sharing a domain keyword
    (e.g., "python-error-handling", "python-testing", "python-style")
-2. **Narrow skills**: skills with very specific scope that could be
-   sections of a broader skill
-3. **Stale skills**: marked as `stale` but could be revived
+2. **Narrow skills**: very specific scope that could be sections of a
+   broader skill
+3. **Stale skills**: marked `stale` but could be revived
 4. **Duplicate content**: skills that overlap significantly
 
 ### Step 3: Consolidate (if needed)
@@ -52,14 +47,12 @@ For each cluster of narrow skills:
 4. Archive the narrow skills:
 
 ```bash
-uv run $HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py skill archive <narrow-skill-name>
+uv run $HOME/.agents/skills/autolearn/scripts/autolearn.py skill archive <narrow-skill-name>
 ```
 
 ### Step 4: Report
 
-Output a summary of what you did:
-
-```
+```text
 Curator report:
 - Auto-transitions: N stale, M archived
 - Consolidated: X narrow skills into Y umbrellas
@@ -75,13 +68,12 @@ Curator report:
 - Keep the umbrella skill's SKILL.md under 3000 characters.
 - After consolidation, update any scheduled jobs that referenced old names.
 
-## When to Run
+## Scheduling
 
-This skill is designed to run as a weekly scheduled job:
+Weekly cron example (OpenCode scheduler):
 
-```
+```bash
 opencode schedule "autolearn-curator" --cron "0 3 * * 0"
---agent autolearn-reviewer --prompt "Load the autolearn-curator skill and run the curator."
+--agent autolearn-reviewer
+--prompt "Load the autolearn skill and follow references/curator.md to run the curator."
 ```
-
-It can also be run manually when the skill library feels cluttered.

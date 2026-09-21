@@ -85,15 +85,15 @@ scripts is catalogued in `references/cli.md`.
 
 ### Moderate signals (act if seen more than once)
 
-9. **Tool choice patterns**: user consistently prefers one tool over another
-10. **Code style preferences**: naming, formatting, structure choices
-11. **Workflow patterns**: how the user approaches tasks, ordering preferences
-12. **Skill gaps**: moments where the agent struggled or didn't know something
+1. **Tool choice patterns**: user consistently prefers one tool over another
+2. **Code style preferences**: naming, formatting, structure choices
+3. **Workflow patterns**: how the user approaches tasks, ordering preferences
+4. **Skill gaps**: moments where the agent struggled or didn't know something
 
 ### Weak signals (record but don't create skills)
 
-13. **Contextual facts**: project-specific information worth remembering
-14. **Environment details**: tool versions, config quirks, platform specifics
+1. **Contextual facts**: project-specific information worth remembering
+2. **Environment details**: tool versions, config quirks, platform specifics
 
 ### What NOT to capture
 
@@ -134,7 +134,7 @@ broadly, replace the narrow entry with the general one.
 
 All state lives under `~/.autolearn/` (override with `AUTOLEARN_HOME`):
 
-```
+```text
 ~/.autolearn/
 ├── personas/default/
 │   ├── memory.context.md    # composed context view (injected every session)
