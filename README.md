@@ -50,7 +50,7 @@ Any supported harness session
 ### One-liner (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ericmjl/opencode-autolearn/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ericmjl/agent-autolearn/main/install.sh | bash
 ```
 
 This copies the adapters, installs the skill, patches your `opencode.json` (OpenCode only), and initializes the store. pi needs no config — the extension is auto-discovered from `~/.pi/agent/extensions/`.
@@ -58,8 +58,8 @@ This copies the adapters, installs the skill, patches your `opencode.json` (Open
 ### Manual install
 
 ```bash
-git clone https://github.com/ericmjl/opencode-autolearn.git
-bash opencode-autolearn/install.sh
+git clone https://github.com/ericmjl/agent-autolearn.git
+bash agent-autolearn/install.sh
 ```
 
 ### What the installer does

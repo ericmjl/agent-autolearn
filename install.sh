@@ -6,7 +6,7 @@
 #   bash install.sh /path/to/repo      # specify repo path
 #
 # Or one-liner:
-#   curl -fsSL https://raw.githubusercontent.com/ericmjl/opencode-autolearn/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/ericmjl/agent-autolearn/main/install.sh | bash
 #
 # Installs for every harness detected on the machine:
 #   - OpenCode v1/v2: plugins + opencode.json patch
@@ -19,7 +19,7 @@ REPO_DIR="${1:-$(cd "$(dirname "$0")" && pwd)}"
 
 if [[ ! -f "$REPO_DIR/plugin/autolearn.js" ]]; then
   echo "Error: could not find plugin/autolearn.js in $REPO_DIR"
-  echo "Clone the repo first: git clone https://github.com/ericmjl/opencode-autolearn.git"
+  echo "Clone the repo first: git clone https://github.com/ericmjl/agent-autolearn.git"
   exit 1
 fi
 

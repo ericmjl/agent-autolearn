@@ -1,5 +1,5 @@
 {
-  "name": "opencode-autolearn",
+  "name": "agent-autolearn",
   "version": "0.1.0",
   "description": "Self-improvement engine for OpenCode — learns from conversations, captures corrections, and escalates behavioral rules",
   "main": "plugin/autolearn.js",
@@ -19,7 +19,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ericmjl/opencode-autolearn.git"
+    "url": "https://github.com/ericmjl/agent-autolearn.git"
   },
   "engines": {
     "bun": ">=1.0.0"
