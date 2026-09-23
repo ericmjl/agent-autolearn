@@ -186,6 +186,20 @@ export function spawnDetached(cmd, opts = {}) {
   return proc
 }
 
+// Windows shim: the review wrapper is a POSIX sh script, which Bun.spawn
+// cannot execute directly on win32. Run it via Git Bash instead.
+function findGitBash() {
+  const candidates = [
+    process.env.OPENCODE_GIT_BASH_PATH,
+    "C:/Program Files/Git/bin/bash.exe",
+    "C:/Program Files (x86)/Git/bin/bash.exe",
+  ].filter(Boolean)
+  for (const c of candidates) {
+    try { if (existsSync(c)) return c } catch {}
+  }
+  return "bash"
+}
+
 // The wrapper is harness-aware: it runs the review under the binary named by
 // AUTOLEARN_HARNESS_BIN (set by each shell: v1 pins `opencode`, v2 pins
 // `opencode2`, the pi shell pins `pi`), falling back to
@@ -602,7 +616,8 @@ export function runReviewSubprocess({ reviewMd, filePrefix = "review", title, cw
 
   // @spec CM-RS-008, CM-RS-009, CM-RS-010
   const args = [reviewMd, "--agent", "autolearn-reviewer", "--title", title]
-  spawnDetached([WRAPPER_SCRIPT, ...args], {
+  const shellCmd = process.platform === "win32" ? [findGitBash(), WRAPPER_SCRIPT, ...args] : [WRAPPER_SCRIPT, ...args]
+  spawnDetached(shellCmd, {
     cwd: cwd || process.cwd(),
     env: { ...process.env, AUTOLEARN_REVIEWER: "1", ...(env || {}) },
   })
