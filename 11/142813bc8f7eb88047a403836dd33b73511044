@@ -1,0 +1,26 @@
+skills/autolearn/SKILL.md
+  s_f9639b3fcf6b81::t_2038fdcc42542b 3,5-18,39-57
+  s_f9639b3fcf6b81::t_ea8f738a18e5ef 58
+skills/autolearn/scripts/usage_analysis.py
+  s_f9639b3fcf6b81::t_8264c7b571786e 155,173-177
+  s_f9639b3fcf6b81::t_13b0cbbfe3ef3f 50-53
+  s_f9639b3fcf6b81::t_75b86c922cdb3e 1-49,54-154,156-172,178-303
+skills/autolearn/references/curator.md
+  s_f9639b3fcf6b81::t_a45b22d3a5c9db 24-45,61,74,86-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "11142813bc8f7eb88047a403836dd33b73511044",
+  "prompts": {},
+  "sessions": {
+    "s_f9639b3fcf6b81": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0e2cd-fef4-709b-bf2f-043588618b2f",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "Eric Ma <ericmajinglong@gmail.com>"
+    }
+  }
+}
