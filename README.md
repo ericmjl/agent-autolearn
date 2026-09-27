@@ -155,7 +155,7 @@ Config lives at `~/.autolearn/personas/default/config.yaml`:
 review_threshold: 5           # user messages (exchanges) between reviews
 session_review_on_idle: true  # spawn review on session idle
 max_conversation_buffer: 50   # max messages in buffer
-curator_interval_days: 7      # how often to run curator
+curator_interval_days: 7      # days between automatic curator runs (0 disables)
 stale_after_days: 30          # days before skill → stale
 archive_after_days: 90        # days before skill → archived
 escalation_threshold: 3       # reinforcement count before curator suggests promotion to AGENTS.md
@@ -261,15 +261,40 @@ Full design documentation lives in `docs/`:
 - [`docs/high-level-design.md`](docs/high-level-design.md) — architecture, decisions, risk matrix. Each feature and decision is marked `shipped`, `partial`, or `planned`.
 - [`docs/designs/`](docs/designs/) — 8 LLDs and 11 EARS specifications covering all shipped features (conversation monitoring, knowledge store, skill management, review agent, session search, sync encryption, sync protocol, multi-persona). See [`docs/README.md`](docs/README.md) for the status-indexed overview.
 
-## Running the curator on a schedule
+## Curator scheduling
 
-```bash
-# Weekly curator via opencode-scheduler (v1 `opencode schedule`;
-# v2 beta has no schedule subcommand yet)
-opencode schedule "autolearn-curator" --cron "0 3 * * 0" \
-  --agent autolearn-reviewer \
-  --prompt "Load the autolearn skill and follow references/curator.md to run the curator."
-```
+The curator runs **automatically** — there is no scheduler to install. After
+every successful review spawn, the harness adapter compares the curator's
+last run against `curator_interval_days` (default 7). When the interval has
+elapsed, it launches the curator in its own single-flight gate — so it never
+overlaps another curator run, and never blocks a running review — logs a
+`curator_triggered` entry to `observations.jsonl`, and starts a machine-wide
+one-hour cooldown so a crashed run can't cause a retry storm. The last-run
+state lives in `~/.autolearn/personas/default/.curator_state.json`, written
+by every `curator run`, including runs that make no changes.
+
+- **Disable the automatic trigger:** set `curator_interval_days: 0`.
+- **Run it manually any time:**
+
+  ```bash
+  uv run ~/.agents/skills/autolearn/scripts/autolearn.py curator run
+  ```
+
+- **Prefer wall-clock scheduling?** Use your OS scheduler directly — no
+  plugin or extra tooling needed:
+
+  ```bash
+  # crontab -e   (Sundays at 03:00)
+  0 3 * * 0 opencode run --agent autolearn-reviewer \
+    "Load the autolearn skill and follow references/curator.md to run the curator."
+  ```
+
+> Note: an earlier version of this section documented an
+> `opencode schedule ... --cron` subcommand. No such command has ever
+> shipped in an opencode release (v1 or v2); the automatic trigger above
+> replaces it — see
+> [#23](https://github.com/ericmjl/agent-autolearn/issues/23).
+
 
 ## Troubleshooting
 
@@ -321,6 +346,25 @@ rm -rf ~/.agents/skills/autolearn
 # "~/.autolearn/personas/default/memory.context.md" instructions entry, and
 # the "autolearn-reviewer" agent entry.
 ```
+
+## Contributing
+
+Well-described issues are welcome, and accepted issues get built. The
+maintainers triage the issue tracker and implement accepted issues with
+coding agents, so a report an agent can act on is a report that turns into
+a fix quickly. A good issue contains:
+
+- **The problem** in a sentence or two — what doesn't work and how you
+  noticed.
+- **Evidence** — exact commands and their output, log excerpts, version
+  numbers, a minimal repro.
+- **A proposal**, if you have one — the fix you'd suggest and any
+  alternatives you considered and ruled out.
+- **What you already validated locally**, so nobody has to re-derive it.
+
+[#23](https://github.com/ericmjl/agent-autolearn/issues/23) is a good model
+of the form. Pull requests are welcome too, against the same bar: describe
+the what and the why, include tests, and keep one logical change per PR.
 
 ## License
 
