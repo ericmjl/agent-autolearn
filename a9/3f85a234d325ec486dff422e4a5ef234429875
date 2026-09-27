@@ -1,0 +1,28 @@
+plugin/autolearn-core.mjs
+  s_f0e4f8e4432e07::t_c770d3fe1c53a6 54-62,237-286,635-671,673-682,687-688,690-701,746-747
+  s_f0e4f8e4432e07::t_9524111b0d4eb1 672,683-686,689,748-749
+  s_f0e4f8e4432e07::t_27f5660b2223c9 750
+README.md
+  s_f0e4f8e4432e07::t_55033b5cfd6259 158,264-296,350-367
+  s_f0e4f8e4432e07::t_cc30eb8e951db6 368
+plugin/test_curator_trigger.mjs
+  s_f0e4f8e4432e07::t_5d8e763ab2c5bc 1-19,21-30,35-97,99-108,110-181,186-196,198,204-206,210-217
+  s_f0e4f8e4432e07::t_6bf286223cc749 98,109,182-185,197,199-203,207-209
+  s_f0e4f8e4432e07::t_96b6fa906dc7c0 20,31-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a93f85a234d325ec486dff422e4a5ef234429875",
+  "prompts": {},
+  "sessions": {
+    "s_f0e4f8e4432e07": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0e309-2bdf-7629-97ce-11e280494cc5",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "Eric Ma <ericmajinglong@gmail.com>"
+    }
+  }
+}
