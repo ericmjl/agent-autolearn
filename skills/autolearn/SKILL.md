@@ -1,23 +1,21 @@
 ---
 name: autolearn
-description: |
+description: >-
   Self-improvement system for coding agents: one skill, three modes, one
-  shared signal taxonomy. MODES — (1) OBSERVER (always-on, in-session):
-  after EVERY user message, silently check the signal taxonomy below; if the
-  user corrected you, stated a preference or workflow spec, or expressed
-  frustration about repetition, record it with
-  `uv run ~/.agents/skills/autolearn/scripts/improve.py observe "<rule>" --project <name>`.
-  Do NOT load the full skill for observation — this description is
-  sufficient; load references/observer.md only for escalation thresholds or
-  writing to AGENTS.md. (2) REVIEWER (autonomous subagent, spawned by the
-  autolearn plugin every N user messages): read references/reviewer.md and
-  follow its action protocol — evaluate the conversation, check the wiki and
-  past sessions, record memories, update the user profile, create or patch
-  at most ONE skill. Do NOT load this mode during normal conversation.
-  (3) CURATOR (scheduled job): read references/curator.md — consolidate
-  narrow skills into umbrellas, archive stale skills, maintain the library.
-  Command reference for both CLIs (autolearn.py, improve.py) lives in
-  references/cli.md.
+  shared signal taxonomy. MODES — (1) OBSERVER (always-on, in-session): after
+  EVERY user message, silently check the signal taxonomy below; if the user
+  corrected you, stated a preference or workflow spec, or expressed
+  frustration about repetition, record it with `uv run
+  ~/.agents/skills/autolearn/scripts/improve.py observe "<rule>" --project
+  <name>`. Do NOT load the full skill for observation; load
+  references/observer.md only for escalation thresholds or writing to
+  AGENTS.md. (2) REVIEWER (autonomous subagent, spawned every N user
+  messages): read references/reviewer.md — evaluate the conversation, check
+  the wiki and past sessions, record memories, update the user profile,
+  create or patch at most ONE skill. (3) CURATOR (scheduled job): read
+  references/curator.md — run the usage-evidence scan
+  (scripts/usage_analysis.py), consolidate narrow skills into umbrellas,
+  propose project-scoping and archives, maintain the library.
 license: MIT
 verify:
   command: "uv run --with pytest --with python-slugify pytest scripts/ --ignore=scripts/test_sync_e2e.py --ignore=scripts/test_sync_crypto.py"
@@ -37,6 +35,26 @@ which reference to load:
 | Observer | The main agent, every session (trigger lives in the description) | `~/.agents/skills/autolearn/references/observer.md` |
 | Reviewer | The `autolearn-reviewer` subagent spawned by the plugin | `~/.agents/skills/autolearn/references/reviewer.md` |
 | Curator | A scheduled maintenance job (weekly by default) | `~/.agents/skills/autolearn/references/curator.md` |
+
+## Trigger details (from pre-compression description, preserved verbatim)
+
+Self-improvement system for coding agents: one skill, three modes, one
+shared signal taxonomy. MODES — (1) OBSERVER (always-on, in-session): after
+EVERY user message, silently check the signal taxonomy below; if the user
+corrected you, stated a preference or workflow spec, or expressed
+frustration about repetition, record it with `uv run
+~/.agents/skills/autolearn/scripts/improve.py observe "<rule>" --project
+<name>`. Do NOT load the full skill for observation — this description is
+sufficient; load references/observer.md only for escalation thresholds or
+writing to AGENTS.md. (2) REVIEWER (autonomous subagent, spawned by the
+autolearn plugin every N user messages): read references/reviewer.md and
+follow its action protocol — evaluate the conversation, check the wiki and
+past sessions, record memories, update the user profile, create or patch at
+most ONE skill. Do NOT load this mode during normal conversation. (3)
+CURATOR (scheduled job): read references/curator.md — consolidate narrow
+skills into umbrellas, archive stale skills, maintain the library. Command
+reference for both CLIs (autolearn.py, improve.py) lives in
+references/cli.md.
 
 Read your mode's reference file with the `read` tool before acting. The
 signal taxonomy below is shared by every mode and is the single source of

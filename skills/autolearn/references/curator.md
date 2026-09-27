@@ -21,7 +21,28 @@ Automatic state transitions:
 - Skills with no activity for 90 days become `archived`
 - Pinned skills are exempt
 
-### Step 2: Review the skill library
+### Step 2: Run the usage-evidence scan
+
+```bash
+uv run $HOME/.agents/skills/autolearn/scripts/usage_analysis.py \
+  --json $HOME/.autolearn/usage-report.json
+```
+
+This mines ACTUAL skill loads from session history (pi sessions, opencode
+DB, legacy opencode storage) across the whole library: load counts,
+per-project distribution, same-session co-occurrence, and zero-load
+inventory skills. Interpretation:
+
+1. **Single-project skills** (>=80% of loads in one project, n>=2):
+   propose project-scoping; move the canonical copy into that project's
+   repo and load it only there (remove from the global install dir).
+2. **Co-occurring pairs** (>=3 shared sessions): candidates for one
+   umbrella skill with per-skill references (progressive disclosure).
+3. **Zero-load skills**: weak evidence only. Skills that prime from their
+   description alone (guardrails, checklists) never show loads. Never
+   archive on zero-load alone; flag for the human with the caveat.
+
+### Step 3: Review the skill library
 
 ```bash
 uv run $HOME/.agents/skills/autolearn/scripts/autolearn.py skill list
@@ -37,7 +58,7 @@ Look for:
 3. **Stale skills**: marked `stale` but could be revived
 4. **Duplicate content**: skills that overlap significantly
 
-### Step 3: Consolidate (if needed)
+### Step 4: Consolidate (if needed)
 
 For each cluster of narrow skills:
 
@@ -50,7 +71,7 @@ For each cluster of narrow skills:
 uv run $HOME/.agents/skills/autolearn/scripts/autolearn.py skill archive <narrow-skill-name>
 ```
 
-### Step 4: Report
+### Step 5: Report
 
 ```text
 Curator report:
@@ -62,8 +83,13 @@ Curator report:
 ## Rules
 
 - Never delete skills. Only archive them. Archives are always recoverable.
-- Only consolidate skills created by autolearn (`created_by: autolearn`).
-- Never touch user-installed or bundled skills.
+- Only AUTO-execute consolidation for skills created by autolearn
+  (`created_by: autolearn`). For user-installed skills, PROPOSE only: put
+  the concrete action list (umbrella merges, project-scoping moves,
+  archives) in the report and wait for explicit human approval.
+- Tool-managed skills (installed by their own tool's installer, refreshed
+  by that tool, e.g. `hey`) must never be modified, moved, or archived;
+  any proposal about them is informational only.
 - If unsure whether to consolidate, leave as-is.
 - Keep the umbrella skill's SKILL.md under 3000 characters.
 - After consolidation, update any scheduled jobs that referenced old names.
