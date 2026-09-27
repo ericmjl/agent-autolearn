@@ -51,6 +51,15 @@ export const REVIEWS_DIR = join(DEFAULT_PERSONA_DIR, "reviews")
 export const SKILLS_DIR = join(DEFAULT_PERSONA_DIR, "skills")
 export const ARCHIVE_DIR = join(SKILLS_DIR, ".archive")
 export const WRAPPER_SCRIPT = join(BIN_DIR, "review-runner.sh")
+// Activity-coupled curator trigger (issue #23). The state file is written by
+// the Python CLI (`curator run` saves last_run on EVERY run, including
+// no-transition runs); the JS side only reads it.
+export const CURATOR_STATE_FILE = join(DEFAULT_PERSONA_DIR, ".curator_state.json")
+// Machine-wide (like THROTTLE_FILE): written at spawn time so a curator run
+// that dies before saving state cannot trigger a retry storm on every
+// subsequent review.
+export const CURATOR_COOLDOWN_FILE = join(AL_HOME, ".curator_cooldown")
+export const CURATOR_COOLDOWN_MS = 3600000 // 1h
 export const SYNC_CONFIG_FILE = join(AL_HOME, "sync.yaml")
 export const SALT_FILE = join(AL_HOME, ".encryption_salt")
 // Skills consolidated into a single `autolearn` skill (scripts/ moved from
@@ -225,6 +234,56 @@ fi
 # Convert ms -> seconds for the shell arithmetic.
 MIN_INTERVAL_S=\$(( MIN_INTERVAL / 1000 ))
 NOW=\$(date +%s)
+# ---- Curator mode (activity-coupled trigger, issue #23) ----
+# Invoked as: review-runner.sh --curator
+# MUST run before the review gates below: it has its OWN single-flight gate
+# and never touches GATE/LOCK, so a curator run neither consumes a review
+# interval nor serializes against reviews. Stale reclaim is 1h (a
+# consolidation session can legitimately run long) vs the review gate's 15m.
+if [ "\$1" = "--curator" ]; then
+  CGATE="\$AL/.curator_gate"
+  if ! mkdir "\$CGATE" 2>/dev/null; then
+    CGAGE=\$(cat "\$CGATE/ts" 2>/dev/null || echo 0)
+    case "\$CGAGE" in ''|*[!0-9]*) CGAGE=0 ;; esac
+    if [ \$((NOW - CGAGE)) -gt 3600 ]; then
+      rm -rf "\$CGATE"
+      mkdir "\$CGATE" 2>/dev/null || exit 0
+    else
+      exit 0
+    fi
+  fi
+  printf '%s\\n' "\$NOW" > "\$CGATE/ts" 2>/dev/null
+  trap 'rm -rf "\$CGATE" 2>/dev/null' EXIT
+  OC="\${AUTOLEARN_HARNESS_BIN:-\${AUTOLEARN_OPENCODE_BIN:-}}"
+  if [ -z "\$OC" ]; then
+    if command -v pi >/dev/null 2>&1; then OC=pi
+    elif command -v opencode2 >/dev/null 2>&1; then OC=opencode2
+    else OC=opencode; fi
+  fi
+  CPROMPT="Load the autolearn skill and follow references/curator.md to run the curator."
+  if [ "\$(basename "\$OC")" = "pi" ]; then
+    printf '%s' "\$CPROMPT" | "\$OC" -p --no-session -na >/dev/null 2>&1
+  else
+    COUT=\$(mktemp "\${TMPDIR:-/tmp}/alcurator.XXXXXX")
+    "\$OC" run --format json --agent autolearn-reviewer "\$CPROMPT" > "\$COUT" 2>/dev/null
+    CSID=\$(sed -n 's/.*"sessionID"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' "\$COUT" | head -1)
+    rm -f "\$COUT"
+    if [ -n "\$CSID" ]; then
+      case "\$(basename "\$OC")" in
+        opencode2) "\$OC" api delete "/api/session/\$CSID" >/dev/null 2>&1 ;;
+        *)         "\$OC" session delete "\$CSID" >/dev/null 2>&1 ;;
+      esac
+    fi
+  fi
+  # Same aftercare as the review path: push post-curator state when sync is
+  # configured; stay silent otherwise.
+  AL_CLI="\$HOME/.agents/skills/autolearn/scripts/autolearn.py"
+  [ -f "\$AL_CLI" ] || AL_CLI="\$HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py"
+  if [ -n "\${AUTOLEARN_SYNC_API_KEY}" ] && [ -f "\${HOME}/.autolearn/.encryption_salt" ] && [ -f "\$AL_CLI" ]; then
+    uv run "\$AL_CLI" sync push >/dev/null 2>&1
+  fi
+  exit 0
+fi
 # Gate 3 first (cheap, no state change): identical conversation → skip.
 # NOTE: the plugin passes the review markdown CONTENT as \$1 (it becomes the
 # prompt), not a file path.
@@ -574,6 +633,73 @@ export function throttleCheck(reviewMd, commit = true) {
 }
 
 /**
+ * Activity-coupled curator trigger (issue #23): decide whether the curator is
+ * due. Replaces the never-shipped `opencode schedule` documented path.
+ *
+ * Due when `curator_interval_days` has elapsed since the curator's last run
+ * (never-run counts as due) AND the spawn cooldown has expired. Set
+ * `curator_interval_days: 0` to disable the automatic trigger entirely.
+ * All inputs are injectable for testing.
+ */
+export function curatorDue({ config = parseConfig(), now = Date.now(), stateFile = CURATOR_STATE_FILE, cooldownFile = CURATOR_COOLDOWN_FILE } = {}) {
+  const rawInterval = config.curator_interval_days
+  if (rawInterval === 0 || rawInterval === "0") return { due: false, reason: "disabled" }
+  const intervalDays = Number(rawInterval) > 0 ? Number(rawInterval) : 7
+  let lastRunMs = 0
+  try {
+    const state = JSON.parse(readFileSync(stateFile, "utf-8"))
+    // Python stores last_run as a date string ("YYYY-MM-DD"); Date.parse
+    // gives UTC midnight — fine at day granularity.
+    if (state.last_run) lastRunMs = Date.parse(state.last_run) || 0
+  } catch {}
+  if (now - lastRunMs < intervalDays * 86400000) {
+    return { due: false, reason: "interval", intervalDays, lastRunMs }
+  }
+  try {
+    const cd = parseInt(readFileSync(cooldownFile, "utf-8").trim(), 10) || 0
+    if (now - cd < CURATOR_COOLDOWN_MS) return { due: false, reason: "cooldown" }
+  } catch {}
+  return { due: true, intervalDays, lastRunMs }
+}
+
+/**
+ * Fire the curator via the wrapper's --curator mode when it is due.
+ * Called from runReviewSubprocess after every successful review spawn, so
+ * all three harness shells (v1, v2, pi) get identical behavior. The wrapper
+ * enforces the real single-flight gate; this side adds the spawn cooldown
+ * so a dead curator run is not re-attempted on every review.
+ */
+export function maybeSpawnCurator({ cwd, project, env, spawnFn, now = Date.now(), config, stateFile, cooldownFile } = {}) {
+  try {
+    const verdict = curatorDue({ ...(config ? { config } : {}), now, ...(stateFile ? { stateFile } : {}), ...(cooldownFile ? { cooldownFile } : {}) })
+    if (!verdict.due) {
+      dbg("CURATOR not due:", verdict.reason)
+      return { ok: false, ...verdict }
+    }
+    // Record the cooldown BEFORE spawning (fail-safe: a killed run still
+    // consumes it, mirroring the wrapper's record-start-before-run rule).
+    try { writeFileSync(cooldownFile || CURATOR_COOLDOWN_FILE, String(now)) } catch {}
+    const spawn = spawnFn || ((cmd, opts) => spawnDetached(cmd, opts))
+    // Forward the caller's env UNCHANGED: the shells pin AUTOLEARN_HARNESS_BIN
+    // per harness family, and dropping the pin would let the wrapper's PATH
+    // fallback route a v1-pinned curator to opencode2 (or pi) — the binary-
+    // shadowing failure mode. AUTOLEARN_CURATOR marks the run for debugging.
+    spawn([WRAPPER_SCRIPT, "--curator"], {
+      cwd: cwd || process.cwd(),
+      env: { ...process.env, AUTOLEARN_CURATOR: "1", ...(env || {}) },
+    })
+    const obs = { type: "curator_triggered", project: project || "unknown", interval_days: verdict.intervalDays }
+    if (verdict.lastRunMs) obs.last_run = new Date(verdict.lastRunMs).toISOString().slice(0, 10)
+    logObs(obs)
+    dbg("CURATOR TRIGGERED (activity-coupled)", project || "unknown")
+    return { ok: true }
+  } catch (err) {
+    dbg("maybeSpawnCurator failed:", err.message)
+    return { ok: false, reason: "error", error: err.message }
+  }
+}
+
+/**
  * Spawn a review subprocess via the wrapper script.
  * `messageCount`, `project`, and `trigger` are recorded in the observation
  * log (spec CM-RS-013); pass `log: false` to skip observation logging
@@ -616,6 +742,11 @@ export function runReviewSubprocess({ reviewMd, filePrefix = "review", title, cw
     logObs(obs)
   }
   dbg("REVIEW SPAWNED OK via wrapper", reviewFile)
+
+  // Activity-coupled curator trigger (issue #23): after every successful
+  // review spawn, fire the curator if curator_interval_days has elapsed.
+  // `env` is forwarded so the harness-binary pin reaches the curator too.
+  maybeSpawnCurator({ cwd, project, env })
 
   // Note: sync push happens in the wrapper script AFTER the review
   // completes, not here — otherwise we'd push pre-review state.
