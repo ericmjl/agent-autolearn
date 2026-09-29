@@ -209,6 +209,12 @@ function findGitBash() {
   return "bash"
 }
 
+// The wrapper is a POSIX sh script; win32 cannot exec it directly, so route
+// it through Git Bash. Returns the argv to spawn for the given platform.
+export function wrapperCommand(args, platform = process.platform) {
+  return platform === "win32" ? [findGitBash(), WRAPPER_SCRIPT, ...args] : [WRAPPER_SCRIPT, ...args]
+}
+
 // The wrapper is harness-aware: it runs the review under the binary named by
 // AUTOLEARN_HARNESS_BIN (set by each shell: v1 pins `opencode`, v2 pins
 // `opencode2`, the pi shell pins `pi`), falling back to
@@ -703,7 +709,7 @@ export function maybeSpawnCurator({ cwd, project, env, spawnFn, now = Date.now()
     // per harness family, and dropping the pin would let the wrapper's PATH
     // fallback route a v1-pinned curator to opencode2 (or pi) — the binary-
     // shadowing failure mode. AUTOLEARN_CURATOR marks the run for debugging.
-    spawn([WRAPPER_SCRIPT, "--curator"], {
+    spawn(wrapperCommand(["--curator"]), {
       cwd: cwd || process.cwd(),
       env: { ...process.env, AUTOLEARN_CURATOR: "1", ...(env || {}) },
     })
@@ -751,8 +757,7 @@ export function runReviewSubprocess({ reviewMd, filePrefix = "review", title, cw
   // limit (32,767 chars) once the review passes ~32 KB and the spawn dies
   // with ENAMETOOLONG (issue #21).
   const args = [reviewFile, "--agent", "autolearn-reviewer", "--title", title]
-  const shellCmd = process.platform === "win32" ? [findGitBash(), WRAPPER_SCRIPT, ...args] : [WRAPPER_SCRIPT, ...args]
-  spawnDetached(shellCmd, {
+  spawnDetached(wrapperCommand(args), {
     cwd: cwd || process.cwd(),
     env: { ...process.env, AUTOLEARN_REVIEWER: "1", ...(env || {}) },
   })
