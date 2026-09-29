@@ -20,7 +20,7 @@
 
 ## Subprocess Spawning
 
-- [x] **CM-RS-008**: The system shall spawn `opencode run <reviewMarkdown> --agent autolearn-reviewer --title "autolearn review"` as a detached subprocess.
+- [x] **CM-RS-008**: The system shall spawn the review runner with the review markdown file path as its argument, streaming the file to the harness on stdin, as a detached subprocess (content is never passed as a process argument; issue #21).
 - [x] **CM-RS-009**: The system shall set the `AUTOLEARN_REVIEWER=1` environment variable on the spawned subprocess to prevent recursive turn counting.
 - [x] **CM-RS-010**: The spawned subprocess stdout and stderr shall be ignored (detached mode).
 

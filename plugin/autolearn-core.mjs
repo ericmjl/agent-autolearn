@@ -220,7 +220,8 @@ const WRAPPER_CONTENT = `#!/bin/sh
 # Autolearn review runner - runs an opencode review, deletes the session,
 # then pushes the updated store via sync (if configured).
 # Works with OpenCode v1 (opencode) and v2 beta (opencode2).
-# Args: passed directly to \`<binary> run --format json\` ($1 = review md path)
+# Args: $1 = path to the review markdown file (streamed to the harness on
+# stdin); remaining args pass through to \`<binary> run --format json\`.
 #
 # Wrapper-side throttle (defense in depth): plugin instances already in
 # memory predate the in-plugin throttle and keep calling this script, so
@@ -298,10 +299,14 @@ if [ "\$1" = "--curator" ]; then
   fi
   exit 0
 fi
+# $1 is the review markdown PATH (not its content): the file is streamed to
+# the harness on stdin, keeping the command line small. Windows caps a
+# process command line at 32,767 chars; content-as-argv broke reviews over
+# ~32 KB with ENAMETOOLONG (issue #21).
+REVIEW_FILE="\$1"
+shift
 # Gate 3 first (cheap, no state change): identical conversation → skip.
-# NOTE: the plugin passes the review markdown CONTENT as \$1 (it becomes the
-# prompt), not a file path.
-CONV=\$(printf '%s' "\$1" | sed -n '/## Conversation/,\$p')
+CONV=\$(sed -n '/## Conversation/,\$p' "\$REVIEW_FILE" 2>/dev/null)
 HASH=""
 if [ -n "\$CONV" ]; then
   HASH=\$(printf '%s' "\$CONV" | md5 -q 2>/dev/null || printf '%s' "\$CONV" | md5sum | cut -d' ' -f1)
@@ -342,7 +347,7 @@ fi
 # pi branch: one-shot print-mode review, ephemeral (--no-session),
 # project-local resources ignored (-na), review md piped on stdin.
 if [ "\$(basename "\$OC")" = "pi" ]; then
-  printf '%s' "\$1" | "\$OC" -p --no-session -na >/dev/null 2>&1
+  "\$OC" -p --no-session -na < "\$REVIEW_FILE" >/dev/null 2>&1
   AL_CLI="\$HOME/.agents/skills/autolearn/scripts/autolearn.py"
   [ -f "\$AL_CLI" ] || AL_CLI="\$HOME/.agents/skills/autolearn-reviewer/scripts/autolearn.py"
   if [ -n "\${AUTOLEARN_SYNC_API_KEY:-}" ] && [ -f "\${HOME}/.autolearn/.encryption_salt" ] && [ -f "\$AL_CLI" ]; then
@@ -351,7 +356,7 @@ if [ "\$(basename "\$OC")" = "pi" ]; then
   exit 0
 fi
 OUT=\$(mktemp "\${TMPDIR:-/tmp}/alreview.XXXXXX")
-"\$OC" run --format json "\$@" > "\$OUT" 2>/dev/null
+"\$OC" run --format json "\$@" < "\$REVIEW_FILE" > "\$OUT" 2>/dev/null
 # BRE backslashes below are DOUBLED (\\\\, \\1) because this script lives
 # inside a JS template literal — single backslashes get eaten by the escape
 # evaluation (\\( -> ( , \\1 -> 0x01 control char under Bun) and the sed
@@ -741,7 +746,11 @@ export function runReviewSubprocess({ reviewMd, filePrefix = "review", title, cw
   dbg("REVIEW FILE WRITTEN", reviewFile)
 
   // @spec CM-RS-008, CM-RS-009, CM-RS-010
-  const args = [reviewMd, "--agent", "autolearn-reviewer", "--title", title]
+  // Pass the review FILE PATH, not the content: the wrapper streams the file
+  // to the harness on stdin. Content-as-argv exceeds the Windows command-line
+  // limit (32,767 chars) once the review passes ~32 KB and the spawn dies
+  // with ENAMETOOLONG (issue #21).
+  const args = [reviewFile, "--agent", "autolearn-reviewer", "--title", title]
   const shellCmd = process.platform === "win32" ? [findGitBash(), WRAPPER_SCRIPT, ...args] : [WRAPPER_SCRIPT, ...args]
   spawnDetached(shellCmd, {
     cwd: cwd || process.cwd(),
