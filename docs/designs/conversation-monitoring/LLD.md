@@ -166,7 +166,7 @@ OpenCode does not emit a `session.ended` event. To ensure buffered conversation 
 1. Check `buffer.length > 2` (same minimum as idle review)
 2. Format review markdown
 3. Write to `~/.autolearn/reviews/review-exit-{timestamp}.md` (synchronous)
-4. Spawn `opencode run` with `detached: true` (fire-and-forget)
+4. Spawn the review runner with the review file path, streaming the file to `opencode run` on stdin (`detached: true`, fire-and-forget)
 5. For signal handlers, call `process.exit()` after spawn to ensure shutdown
 
 The key constraint: signal handlers must be synchronous. `Bun.spawn` with `detached: true` returns immediately and the child process survives parent exit, so this is safe.
