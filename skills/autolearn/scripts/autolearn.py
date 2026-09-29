@@ -56,6 +56,10 @@ try:
 except ImportError:  # cryptography only needed for sync; module stays importable without it
     sync_crypto = None  # type: ignore[assignment]
 
+# Console encoding guard: keeps CLI output from crashing on non-UTF-8
+# consoles (e.g. Windows cp1252). Sibling module in the same scripts dir.
+import stdio_guard
+
 # Memory Insight subsystem (registry + retention + composer + shift + ui).
 # These are siblings in the same scripts dir; imported here so the CLI can
 # dispatch to them. See docs/designs/memory-insight/LLD.md.
@@ -2304,6 +2308,7 @@ def cmd_sync_status(args):
 
 
 def main():
+    stdio_guard.reconfigure_stdio()
     parser = argparse.ArgumentParser(
         prog="autolearn",
         description="Autolearn CLI - manages self-improvement store",
