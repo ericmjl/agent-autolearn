@@ -31,6 +31,8 @@ from pathlib import Path
 import yaml
 from filelock import FileLock
 
+from stdio_guard import reconfigure_stdio
+
 DATA_HOME = Path(
     os.environ.get("AGENT_IMPROVEMENT_HOME", Path.home() / ".agent-improvement")
 )
@@ -649,6 +651,7 @@ def cmd_seed(args):
 
 
 def main():
+    reconfigure_stdio()
     parser = argparse.ArgumentParser(
         prog="improve",
         description="Self-improving agent CLI — manages behavioral rules",
