@@ -57,7 +57,7 @@ export const AutolearnPlugin = async (ctx) => {
   const messageRoles = new Map()
 
   const projectName = () => (directory || worktree || process.cwd()).split("/").pop() || "unknown"
-  const reviewCwd = () => directory || worktree || process.cwd()
+  const reviewCwd = () => core.reviewerCwd()
 
   core.injectInstructions()
   core.composeContext()
