@@ -1355,6 +1355,19 @@ def cmd_search_init(args):
         sconn.commit()
         print("Cleared existing index for full rebuild...")
 
+    # One-time rebuild after the v2 user-text fix (issue #30): the old loop
+    # skipped user messages but still advanced last_v2_message_time, so an
+    # incremental run could never see them again.
+    if not full and not sconn.execute(
+        "SELECT 1 FROM index_state WHERE key = 'v2_user_text_fix'"
+    ).fetchone():
+        sconn.execute("DELETE FROM session_text_content")
+        sconn.execute("DELETE FROM indexed_session")
+        sconn.execute("DELETE FROM index_state WHERE key = 'last_part_time'")
+        sconn.execute("DELETE FROM index_state WHERE key = 'last_v2_message_time'")
+        sconn.commit()
+        print("Rebuilding the index once to recover user messages skipped by the old v2 loop...")
+
     last_mark_row = sconn.execute(
         "SELECT value FROM index_state WHERE key = 'last_part_time'"
     ).fetchone()
@@ -1493,20 +1506,28 @@ def cmd_search_init(args):
             continue
         if not isinstance(mdata, dict):
             continue
+        # v2 user messages carry a scalar `data.text`; assistant messages
+        # carry a `content` parts array. The old loop required `content`, so
+        # every user message was skipped (issue #30).
+        texts = []
         parts = mdata.get("content")
-        if not isinstance(parts, list):
+        if isinstance(parts, list):
+            for part in parts:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    part_text = part.get("text", "")
+                    if part_text and part_text.strip():
+                        texts.append(part_text)
+        else:
+            scalar_text = mdata.get("text")
+            if isinstance(scalar_text, str) and scalar_text.strip():
+                texts.append(scalar_text)
+        if not texts:
             continue
 
         session_id = row["session_id"]
         session = get_session(session_id)
 
-        for i, part in enumerate(parts):
-            if not isinstance(part, dict) or part.get("type") != "text":
-                continue
-            text = part.get("text", "")
-            if not text or not text.strip():
-                continue
-
+        for text in texts:
             sconn.execute(
                 "INSERT INTO session_text_content (session_id, message_id, role, text, project, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
                 [session_id, row["msg_id"], row["role"], text, session.get("project", "") or "", row["time_created"]],
@@ -1520,6 +1541,9 @@ def cmd_search_init(args):
         if row["time_created"] > v2_max_time:
             v2_max_time = row["time_created"]
 
+    sconn.execute(
+        "INSERT OR REPLACE INTO index_state (key, value) VALUES ('v2_user_text_fix', '1')"
+    )
     if v2_max_time > last_v2_mark:
         sconn.execute(
             "INSERT OR REPLACE INTO index_state (key, value) VALUES ('last_v2_message_time', ?)",
